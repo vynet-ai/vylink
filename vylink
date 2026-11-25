@@ -1,0 +1,4 @@
+#!/bin/sh
+# vylink: send tagged text between tmux agent panes (see `vylink help`).
+here="$(cd "$(dirname "$0")" && pwd -P)"
+exec python3 "$here/vylink.py" "$@"
