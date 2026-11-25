@@ -167,6 +167,14 @@ r = guarded("ordinary teammate text", {"VYLINK_FORBID": "remote-human-marker"})
 check("VYLINK_FORBID alone allows a non-matching line", r.returncode == 0 and r.stdout.strip() == "ordinary teammate text")
 r = guarded("x remote\x7fhuman y", {"VYLINK_FORBID": "remote human"})
 check("a control character inside a marker does not hide it", r.returncode == 65, r.stdout)
+hidden = {"a zero-width space after the first word": "remote\u200b human", "a zero-width space inside a word": "rem\u200bote human",
+          "a word joiner in place of the space": "remote\u2060human", "a soft hyphen inside a word": "rem\u00adote human",
+          "a full-width letter": "\uff52emote human", "an accent on a letter": "r\u00e9mote human"}
+for what, marker in hidden.items():
+    r = guarded(f"x {marker} y", {"VYLINK_FORBID": "remote human"})
+    check(f"a marker with {what} is refused", r.returncode == 65, r.stdout)
+r = guarded("caf\u00e9, na\u00efve: remote work, human review", {"VYLINK_FORBID": "remote human"})
+check("ordinary text with accents still goes through", r.returncode == 0 and "caf\u00e9, na\u00efve" in r.stdout, r.stdout)
 r = guarded("ordinary teammate text", {"VYLINK_FORBID": "(["})
 check("invalid VYLINK_FORBID refuses with exit 65", r.returncode == 65 and "invalid regular expression" in r.stdout, r.stdout)
 with open(guard_file, "w", encoding="utf-8") as f:

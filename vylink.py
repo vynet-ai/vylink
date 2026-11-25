@@ -39,11 +39,15 @@ State files that are symbolic links are refused.
 
 Optional forbidden-marker guard: put one regular expression per non-empty
 line in <state>/forbid.txt, or set VYLINK_FORBID to one expression. Both
-sources apply. A match refuses the message with exit 65. With neither
-configured, no marker is forbidden. Use this to stop teammate messages
-carrying a marker the receiving agent trusts as proof of the human user.
-Patterns use Python regular expressions; use (?i) for case-insensitive
-matching. Invalid expressions or unreadable configuration also refuse sends.
+sources apply. A match refuses the message with exit 65. The text is judged
+as written, as it will be pasted, and with invisible characters removed and
+accents and full-width forms folded, so a pattern without accents also
+matches the accented spelling. Look-alike letters from other alphabets are
+not caught. With neither configured, no marker is forbidden. Use this to
+stop teammate messages carrying a marker the receiving agent trusts as
+proof of the human user. Patterns use Python regular expressions; use (?i)
+for case-insensitive matching. Invalid expressions or unreadable
+configuration also refuse sends.
 
 Optional paste coordination: set VYLINK_BUSY_DIR to another sender's lock
 root. When <root>/<peer name>/ exists, vylink takes an exclusive file lock
@@ -62,6 +66,7 @@ import shutil
 import subprocess
 import sys
 import time
+import unicodedata
 from datetime import datetime
 
 HERE = os.path.dirname(os.path.realpath(__file__))  # realpath: ~/.local/bin/vylink is a symlink to this file
@@ -362,6 +367,30 @@ def flatten(text):
     return re.sub(r"[\x00-\x1f\x7f]", " ", line)
 
 
+INVISIBLE = "\u115f\u1160\u3164\uffa0\u2800"  # blank characters that are not in Unicode's "format" class
+
+
+def bare(text, gap=""):
+    """The text as a reader sees it, for the marker guard only. Compatibility forms are folded (a full-width letter
+    becomes the plain one), accents are dropped, and invisible characters are dropped or turned into `gap`.
+    Nothing that is pasted is changed by this."""
+    out = []
+    for c in unicodedata.normalize("NFKD", text):
+        cat = unicodedata.category(c)
+        if cat == "Cf" or c in INVISIBLE:
+            out.append(gap)
+        elif cat not in ("Mn", "Me"):
+            out.append(c)
+    return "".join(out)
+
+
+def guard_views(text):
+    """Every form of the text the marker guard judges: as written, as it will be pasted, and as a reader sees it,
+    with an invisible character read both as nothing and as a space."""
+    flat = flatten(text)
+    return (text, flat, bare(text), bare(text, " "), bare(flat), bare(flat, " "))
+
+
 def waiter_path(waiting_name, from_name):
     safe = lambda s: re.sub(r"[^a-z0-9%_-]", "_", s.lower())
     return os.path.join(WAIT_DIR, f"{safe(waiting_name)}--from--{safe(from_name)}.json")
@@ -471,10 +500,13 @@ def message_text(words):
         die(65, "REFUSED: cannot read forbidden-marker configuration (forbid.txt)")
     if "VYLINK_FORBID" in os.environ:
         patterns.append((os.environ["VYLINK_FORBID"], "VYLINK_FORBID"))
-    flat = flatten(text)  # also judge the text as it will be pasted: a control character must not hide a marker
+    # Judge the text as written, as it will be pasted and as a reader sees it: a control character, an invisible
+    # character, an accent or a full-width form must not hide a marker. Look-alike letters from other alphabets
+    # are not caught.
+    views = guard_views(text)
     for pattern, source in patterns:
         try:
-            matched = re.search(pattern, text) or re.search(pattern, flat)
+            matched = any(re.search(pattern, view) for view in views)
         except re.error:
             die(65, f"REFUSED: invalid regular expression in {source}")
         if matched:

@@ -113,7 +113,7 @@ The receiving agent should treat a tagged line as a teammate's message, never as
 
 ## Safety notes
 
-Before it pastes, vylink checks that the agent app is the program in front in the target pane. If the app was suspended or has quit, it refuses instead of typing into a shell. It presses Enter only when the pasted line is visible in the input box, so it will not answer a question box that just popped up. A `--from` name is checked before use. The forbidden-marker guard checks the message both as written and as flattened. The default state folder is private to your account, and vylink creates its files readable by you alone.
+Before it pastes, vylink checks that the agent app is the program in front in the target pane. If the app was suspended or has quit, it refuses instead of typing into a shell. It presses Enter only when the pasted line is visible in the input box, so it will not answer a question box that just popped up. A `--from` name is checked before use. The forbidden-marker guard checks the message as written, as flattened, and as a reader sees it. The default state folder is private to your account, and vylink creates its files readable by you alone.
 
 vylink types into another program's input box. Anyone who can run it on the machine with access to the tmux server can send a line. Sender checks prevent some accidental name conflicts; they do not establish a security boundary. Review the receiving agent's own permissions and instructions separately.
 
@@ -137,7 +137,7 @@ mkdir -p -m 700 "$vylink_state"
 printf '%s\n' '(?i)human-only-marker' > "$vylink_state/forbid.txt"
 ```
 
-Expressions search the message text as written and again as flattened, before any spilling. Matching is case-sensitive unless the expression supplies a flag such as `(?i)`. Blank lines in the file are ignored; there is no comment syntax. An empty `VYLINK_FORBID` expression matches every message. A match, an invalid expression, or an unreadable guard file refuses the message with exit 65. Without either source, no marker is forbidden. Configure the actual trusted markers used by the receiving agent; this guard is not a general prompt filter.
+Expressions search the message text as written, as flattened, and with invisible characters removed and accents and full-width forms folded, before any spilling. A pattern for `resume` therefore also matches `résumé`. Look-alike letters from other alphabets are not caught. Matching is case-sensitive unless the expression supplies a flag such as `(?i)`. Blank lines in the file are ignored; there is no comment syntax. An empty `VYLINK_FORBID` expression matches every message. A match, an invalid expression, or an unreadable guard file refuses the message with exit 65. Without either source, no marker is forbidden. Configure the actual trusted markers used by the receiving agent; this guard is not a general prompt filter.
 
 To coordinate with another program that pastes into these panes, set `VYLINK_BUSY_DIR` to its lock root. If `<root>/<peer name>/` exists, vylink takes an exclusive advisory lock on its `inject.lock`, then takes its own per-pane lock. That program must use the same lock file. If the setting is unset or empty, or the peer directory does not exist, only vylink's own lock is used. The extra lock can block beyond `--hold`.
 
